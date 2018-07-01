@@ -378,9 +378,12 @@ next_message_id(#state{sent=[]}) ->
 next_message_id(#state{sent=Sent}) ->
     lists:max(orddict:fetch_keys(Sent)) + 1.
 
+
 %%
 %% @doc Call with module, function and args
 %%
+-ifndef(OTP_RELEASE).
+% OTP < 21
 call_mfa(Module, Function, Args) ->
     try {ok, apply(Module, Function, Args)}
     catch
@@ -392,6 +395,19 @@ call_mfa(Module, Function, Args) ->
             Trace = erlang:get_stacktrace(),
             {error, {erlang, Type, Reason, Trace}}
     end.
+-else.
+% OTP >= 21
+call_mfa(Module, Function, Args) ->
+    try {ok, apply(Module, Function, Args)}
+    catch
+        error:{Language, Type, _Val, Trace}=Error
+                when is_atom(Language) andalso is_atom(Type)
+                andalso is_list(Trace) ->
+            {error, Error};
+        Type:Reason:Trace ->
+            {error, {erlang, Type, Reason, Trace}}
+    end.
+-endif.
 
 %%
 %% @doc Handle incoming call request
